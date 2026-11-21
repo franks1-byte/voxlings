@@ -3117,14 +3117,14 @@ async function foePotion(m,box){if(!B.T||!(B.T.pot>0)||m.hp<=0||m.hp>m.maxHp*0.3
 // ---------- CLOUD ACCOUNTS (Supabase) — your save lives online so it never gets lost
 const CLOUD={url:'https://pnasdwaoxjcuhuyrdqec.supabase.co',key:'sb_publishable_7qeTJkYoW65zeJ3jHCQBvg_ejeyrWkF'};
 let cloud=(()=>{try{return JSON.parse(localStorage.getItem('voxlings-cloud'))||null}catch(e){return null}})(),cloudT=null,cloudLast=0,cloudBusy=false,cloudMsg='';
-async function cloudRPC(fn,args){let r;try{r=await fetch(`${CLOUD.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{'Content-Type':'application/json',apikey:CLOUD.key,Authorization:'Bearer '+CLOUD.key},body:JSON.stringify(args),keepalive:fn==='vox_save'&&JSON.stringify(args).length<60000});}
-  catch(e){throw new Error('Cannot reach the cloud server. Check your internet (the Windows app works best).');}
+async function cloudRPC(fn,args){let r;const ac=typeof AbortController!=='undefined'?new AbortController():null,tm=ac&&setTimeout(()=>ac.abort(),20000);try{r=await fetch(`${CLOUD.url}/rest/v1/rpc/${fn}`,{method:'POST',signal:ac?ac.signal:undefined,headers:{'Content-Type':'application/json',apikey:CLOUD.key,Authorization:'Bearer '+CLOUD.key},body:JSON.stringify(args),keepalive:fn==='vox_save'&&JSON.stringify(args).length<60000});}
+  catch(e){clearTimeout(tm);throw new Error(e&&e.name==='AbortError'?'The cloud server took too long. Try again.':'Cannot reach the cloud server. Check your internet.');}clearTimeout(tm);
   const t=await r.text();let j=null;try{j=t?JSON.parse(t):null}catch(e){}
   if(!r.ok)throw new Error((j&&(j.message||j.hint))||('Cloud error '+r.status));return j;}
 function setCloud(c){cloud=c;try{c?localStorage.setItem('voxlings-cloud',JSON.stringify(c)):localStorage.removeItem('voxlings-cloud')}catch(e){}}
-async function cloudPush(now){if(!cloud||!cloud.token)return;if(!loadSave())return;const sv=cloudBundle();
+async function cloudPush(now){if(!cloud||!cloud.token)return;if(!loadSave()&&!rawSave(1)&&!rawSave(2)){cloudMsg='☁ Nothing to save yet — start your adventure first, then it saves automatically.';return;}const sv=cloudBundle();
   if(!now&&Date.now()-cloudLast<15000){clearTimeout(cloudT);cloudT=setTimeout(()=>cloudPush(true),15000-(Date.now()-cloudLast));return;}
-  if(cloudBusy)return;cloudBusy=true;cloudLast=Date.now();
+  if(cloudBusy){if(now)cloudMsg='☁ Saving... (already in progress)';return;}cloudBusy=true;cloudLast=Date.now();
   try{await cloudRPC('vox_save',{p_token:cloud.token,p_save:sv});cloudMsg='☁ Saved online '+new Date().toLocaleTimeString();}
   catch(e){cloudMsg='☁ '+e.message;if(/expired/i.test(e.message))setCloud(null);}finally{cloudBusy=false;}}
 async function cloudAuth(mode,u,p){const j=await cloudRPC(mode==='new'?'vox_register':'vox_login',{p_user:u,p_pass:p});setCloud({token:j.token,user:j.username});
