@@ -3583,7 +3583,7 @@ function setCloud(c){cloud=c;try{c?localStorage.setItem('voxlings-cloud',JSON.st
 async function cloudPush(now){if(!cloud||!cloud.token)return;if(!loadSave()&&![1,2,3,4].some(r=>rawSave(r))){cloudMsg='☁ Nothing to save yet — start your adventure first, then it saves automatically.';return;}const sv=cloudBundle();
   if(!now&&Date.now()-cloudLast<15000){clearTimeout(cloudT);cloudT=setTimeout(()=>cloudPush(true),15000-(Date.now()-cloudLast));return;}
   if(cloudBusy){if(now)cloudMsg='☁ Saving... (already in progress)';return;}cloudBusy=true;cloudLast=Date.now();
-  try{const j=await cloudRPC('vox_save2',{p_token:cloud.token,p_save:sv});cloudMsg='☁ Saved online '+new Date().toLocaleTimeString();if(j){if(!!j.is_admin!==!!cloud.admin||!!j.muted!==!!cloud.muted)setCloud(Object.assign({},cloud,{admin:!!j.is_admin,muted:!!j.muted}));if(j.patch)setTimeout(()=>applyPatch(j.patch),0);}}
+  try{const j=await cloudRPC('vox_save2',{p_token:cloud.token,p_save:sv});cloudMsg='☁ Saved online '+new Date().toLocaleTimeString();if(j){if(!!j.is_admin!==!!cloud.admin||!!j.muted!==!!cloud.muted)setCloud(Object.assign({},cloud,{admin:!!j.is_admin,muted:!!j.muted}));if(j.patch){const k=JSON.stringify(j.patch);if(k!==lastPatchSeen){lastPatchSeen=k;setTimeout(()=>applyPatch(j.patch),0);}}}}
   catch(e){cloudMsg='☁ '+e.message;if(/expired/i.test(e.message))setCloud(null);if(/BANNED/.test(e.message))onBanned();}finally{cloudBusy=false;}}
 function onBanned(){setCloud(null);try{toast('⛔ This account was BANNED by the admin.')}catch(e){}}
 // admin changes sent by the server (money / god mode)
@@ -3650,11 +3650,11 @@ function openAdmin(){if(needLogin())return;if(!cloud.admin)return toast('Admins 
     <div style="overflow:auto"><table style="width:100%;font-size:8px;border-collapse:collapse">
       <tr style="background:#263238;color:#fff"><th style="padding:5px">PLAYER</th><th>STATUS</th><th>₱ R1</th><th>₱ R2</th><th>₱ R3</th><th>₱ R4</th><th>BADGES</th><th>ACTIONS</th></tr>
       ${rows.map((r,i)=>`<tr style="border-bottom:2px solid #ddd;background:${r.banned?'#ffebee':i%2?'#fafafa':'#fff'}"><td style="padding:5px">${r.online?'🟢':'⚫'} <b>${r.is_admin?'🛡 ':''}${escH(r.username)}</b> <span style="color:#1565c0">#${r.tag||''}</span>${r.email?'':'<br><span style="color:#e65100">no email</span>'}</td>
-        <td>${r.banned?'⛔ BANNED':'OK'}${r.muted?' · 🔇':''}${r.god?' · ⚡':''}</td>
+        <td>${r.banned?'⛔ BANNED':'OK'}${r.muted?' · 🔇':''}${r.god?' · ⚡':''}${r.pending?'<br><span style="color:#e65100">⏳ sending to player...</span>':''}</td>
         ${[1,2,3,4].map(k=>`<td><input data-u="${escH(r.username)}" data-k="money_r${k}" value="${r['money_r'+k]||0}" style="width:70px;font:inherit;font-size:8px;padding:3px"><button class="btn sm aSet" data-u="${escH(r.username)}" data-k="money_r${k}">SET</button></td>`).join('')}
         <td>${[1,2,3,4].map(k=>r['badges_r'+k]||0).join(' / ')}</td>
         <td style="white-space:nowrap">${r.is_admin?'':`<button class="btn sm aAct" data-u="${escH(r.username)}" data-a="${r.banned?'unban':'ban'}">${r.banned?'UNBAN':'BAN'}</button><button class="btn sm aAct" data-u="${escH(r.username)}" data-a="${r.muted?'unmute':'mute'}">${r.muted?'UNMUTE':'MUTE'}</button>`}<button class="btn sm aAct" data-u="${escH(r.username)}" data-a="${r.god?'god_off':'god_on'}">${r.god?'GOD OFF':'GOD ON'}</button><button class="btn sm aAct" data-u="${escH(r.username)}" data-a="clear_chat">CLEAR CHAT</button></td></tr>`).join('')||'<tr><td colspan="8" style="padding:10px;color:#999">No players found.</td></tr>'}
-    </table></div><p style="font-size:7px;color:#777;line-height:1.7;margin-top:8px">Money and god-mode changes reach the player the next time their game saves online. BAN logs them out and blocks logging in, saving and chat.</p>
+    </table></div><p style="font-size:7px;color:#777;line-height:1.7;margin-top:8px">Money and god-mode changes reach the player within about 20 seconds while they are online (logged in to ☁). Click GOD ON only once. BAN logs them out and blocks logging in, saving and chat.</p>
     <div style="text-align:center;margin-top:6px"><button class="btn sm" id="aClose">CLOSE</button></div></div>`;
     $('aClose').onclick=close;$('aFind').onclick=()=>{q=$('aQ').value.trim();load();};$('aQ').onkeydown=e=>{e.stopPropagation();if(e.key==='Enter'){q=$('aQ').value.trim();load();}};
     $('aUnlock').onclick=()=>adminUnlockAll();$('aCash').onclick=()=>{if(!started)return toast('Start or load a game first.');money+=1000000;save(true);updateHUD();msg='Added ₱1,000,000 to your game.';draw();};
@@ -3669,8 +3669,11 @@ function openAdmin(){if(needLogin())return;if(!cloud.admin)return toast('Admins 
 if(cloud&&cloud.token)setTimeout(refreshMe,1500);
 // ---------- FRIENDS + presence
 function whereNow(){try{if(!started)return 'On the title screen';const w=WRLD(P.x);return (WORLD_NAMES[w]||'').replace(/^WORLD (\d+) — /,'W$1 ')+(inside?' · indoors':'');}catch(e){return ''}}
-async function pingPresence(){if(!cloud||!cloud.token||document.hidden)return;try{await cloudRPC('vox_ping',{p_token:cloud.token,p_where:whereNow()});}catch(e){if(/BANNED/.test(e.message))onBanned();if(/expired/i.test(e.message))setCloud(null);}}
-setInterval(pingPresence,60000);setTimeout(pingPresence,4000);
+var lastPatchSeen='';
+// every 20 s: tell the server we're online and pick up admin changes (god mode, money) right away
+async function pingPresence(){if(!cloud||!cloud.token||document.hidden)return;try{const j=await cloudRPC('vox_ping2',{p_token:cloud.token,p_where:whereNow()});
+    if(j&&j.patch){const k=JSON.stringify(j.patch);if(k!==lastPatchSeen){lastPatchSeen=k;applyPatch(j.patch);setTimeout(()=>{try{cloudPush(true)}catch(e){}},400);}}else lastPatchSeen='';}catch(e){if(/BANNED/.test(e.message))onBanned();if(/expired/i.test(e.message))setCloud(null);}}
+setInterval(pingPresence,20000);setTimeout(pingPresence,4000);
 function agoTxt(t){if(!t)return 'never';const m=Math.round((Date.now()-new Date(t))/60000);return m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':Math.round(m/1440)+(Math.round(m/1440)===1?' day ago':' days ago');}
 function openFriends(){if(needLogin())return;const prev=state;if(started&&state==='world')state='menu';const ov=ovEl('friendov');let data=null,msg='',timer=null;
   const close=()=>{clearInterval(timer);ov.style.display='none';if(started&&state==='menu')state=prev==='menu'?'world':prev;};
