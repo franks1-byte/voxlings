@@ -113,7 +113,7 @@ html.rot90 #dpad{bottom:56px}html.rot90 #abtn{bottom:70px}html.rot90 #runbtn{bot
 <div id="hud" class="panel"></div>
 <div id="area" class="panel"></div>
 <div id="questBar" class="panel"></div>
-<div id="topbtns"><button class="btn" id="menuBtn">☰ MENU</button><button class="btn" id="teamBtn">TEAM</button><button class="btn" id="bagBtn">BAG</button><button class="btn" id="mapBtn">MAP</button><button class="btn" id="dexBtn">📖 DEX</button><button class="btn" id="hintBtn">💡 HINT</button><button class="btn" id="friendBtn">👥 FRIENDS</button><button class="btn" id="onlineBtn">🌐 ONLINE</button><button class="btn" id="chatBtn">💬 CHAT</button></div>
+<div id="topbtns"><button class="btn" id="menuBtn">☰ MENU</button><button class="btn" id="teamBtn">TEAM</button><button class="btn" id="bagBtn">BAG</button><button class="btn" id="mapBtn">MAP</button><button class="btn" id="dexBtn">📖 DEX</button><button class="btn" id="hintBtn">💡 HINT</button><button class="btn" id="friendBtn">👥 FRIENDS</button><button class="btn" id="onlineBtn">🌐 ONLINE</button><button class="btn" id="regionBtn">⛵ REGIONS</button><button class="btn" id="homeBtn">🏠 HOME</button><button class="btn" id="chatBtn">💬 CHAT</button></div>
 <div id="hint">ARROWS / WASD: MOVE · HOLD B / SHIFT: RUN · ENTER: TALK · F: FISH · ESC: MENU · Q: SAVE · I: BAG · H: HINT · V: VOXEDEX · X: SPEED x2<br>BUMP DOORS TO ENTER · TALL GRASS = WILD VOXLINGS · SIT ON BENCHES · OPEN CHESTS</div>
 
 <div id="foeHP" class="hpbox panel"></div>
@@ -3019,7 +3019,13 @@ $('mapClose').onclick=()=>{$('mapov').style.display='none';state='world';};
 async function menuBtn(fn){if(state!=='world'||P.moving)return;state='menu';held.length=0;await fn();state='world';}
 $('teamBtn').onclick=()=>menuBtn(()=>openTeam('view'));
 $('bagBtn').onclick=()=>menuBtn(openBag);
-$('hintBtn').onclick=()=>showHint();$('chatBtn').onclick=()=>openChat();$('friendBtn').onclick=()=>openFriends();$('onlineBtn').onclick=()=>PVP.openOnline();$('spdBtn').onclick=()=>setSpeed(GS>1?1:2);setTimeout(()=>setSpeed(GS),0);
+$('hintBtn').onclick=()=>showHint();$('chatBtn').onclick=()=>openChat();$('friendBtn').onclick=()=>openFriends();$('onlineBtn').onclick=()=>PVP.openOnline();$('homeBtn').onclick=()=>{if(state!=='world'||P.moving||(PVP&&PVP.busy))return;scene(async()=>{
+  const c=await ask('Go back to the HOME SCREEN?<br><span style="font-size:8px">Your game is saved first. You can CONTINUE or pick another region there.</span>',['🏠 YES, GO HOME','CANCEL']);
+  if(c!==0)return;held.length=0;save(true);try{await cloudPush(true)}catch(e){}try{sessionStorage.removeItem('voxlings-autoload')}catch(e){}
+  const f=$('fade');if(f){f.style.transition='opacity .6s';f.style.background='#000';f.style.opacity=1;}setTimeout(()=>location.reload(),650);});};
+$('regionBtn').onclick=()=>{if(state!=='world'||P.moving||(PVP&&PVP.busy))return;scene(async()=>{const dests=[1,2,3,4].filter(r=>r!==REGION);
+  const pick=await ask(`You are in REGION ${REGION} — ${REGS[REGION].name}.<br><span style="font-size:8px">Each region keeps its own progress. Pick where to go:</span>`,[...dests.map(r=>`REGION ${r} — ${REGS[r].name}${hasParty(rawSave(r))?'':' ✦NEW'}`),'CANCEL']);
+  if(pick>=dests.length)return;setTimeout(()=>travelRegion(dests[pick]),50);});};$('spdBtn').onclick=()=>setSpeed(GS>1?1:2);setTimeout(()=>setSpeed(GS),0);
 $('dexBtn').onclick=()=>{if(state!=='world')return;openMenu();menuDex();};
 $('mapBtn').onclick=()=>{if(state!=='world')return;state='menu';drawMap();$('mapov').style.display='flex';};
 
